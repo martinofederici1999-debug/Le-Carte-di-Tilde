@@ -1,0 +1,6 @@
+{
+  "appId": "it.timar.cartetilde",
+  "appName": "Carte di Tilde",
+  "webDir": "www",
+  "android": { "backgroundColor": "#2a1d14" }
+}
