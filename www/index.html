@@ -179,6 +179,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 @media(prefers-reduced-motion:reduce){#intro *{animation-duration:.01s!important;animation-delay:0s!important}}
 .ttl{display:flex;align-items:center;gap:12px}.ttl img{width:clamp(48px,12vw,72px);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.5)}
 .others{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;margin:4px 0 10px}.oth{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--parch2)}.oth .dot{width:10px;height:10px;border-radius:50%}.oth .hand{flex-wrap:nowrap;gap:3px;justify-content:flex-start}.oth .hand .h{width:30px!important}
+.thumbs.mini{display:flex;gap:4px;margin:8px 0}.thumbs.mini img{width:48px;border-radius:3px;box-shadow:none}
+.mydeck{border-top:1px dashed var(--parch2);padding:10px 0}.mydeck .top{align-items:baseline}
 </style>
 </head>
 <body>
@@ -364,6 +366,8 @@ const PRESETS=[
 S.cols=sg('cols',[]).filter(c=>c&&c.name&&Array.isArray(c.cards)).map(c=>({name:c.name,cards:c.cards.filter(n=>C[n])})).slice(0,4);
 S.src=[sg('src0',null),null,null,null];if(S.src[0]!==null&&!S.cols[S.src[0]])S.src[0]=null;
 S.stake=sg('stake',false);
+S.my=sg('mydecks',[]).filter(d=>d&&d.n&&Array.isArray(d.c)&&d.c.length===5&&d.c.every(n=>C[n]));
+function saveMy(){ss('mydecks',S.my)}
 function saveCols(){ss('cols',S.cols)}
 const ID=Object.fromEntries(DATA.cards.map(c=>[c.n,c.id]));const BYID=Object.fromEntries(DATA.cards.map(c=>[String(c.id),c.n]));
 function exportCode(c){return c.name.replace(/[:;]/g,' ')+':'+c.cards.map(n=>ID[n]).join('.')}
@@ -417,6 +421,17 @@ function colEdit(i){
   $('#del').onclick=()=>{if(CE.del===i){S.cols.splice(i,1);S.src=S.src.map(v=>v===i?null:v!==null&&v>i?v-1:v);ss('src0',S.src[0]);saveCols();CE.del=-1;colsScreen()}else{CE.del=i;colEdit(i)}};
 }
 
+function myDecks(p,src,del=-1){
+  const ok=d=>!src||d.c.every(n=>src.cards.includes(n));
+  zoomHTML(`<div class="panel" style="max-width:520px;width:100%;max-height:85vh;overflow:auto;text-align:left"><div class="top"><h2>I miei mazzi</h2><button class="btn sm dk" onclick="closeZoom()">Chiudi</button></div>
+    ${S.my.length?'':'<p class="small">Non hai ancora mazzi salvati. Scegli 5 carte e tocca "Salva questo mazzo".</p>'}
+    ${S.my.map((d,i)=>`<div class="mydeck"><div class="top"><b>${esc(d.n)}</b>${d.e&&evById(d.e)?`<span class="small">${esc(evById(d.e).n)}</span>`:''}</div>
+      <div class="thumbs mini">${d.c.map(n=>`<img src="${IMG[n]}" alt="${esc(n)}">`).join('')}</div>
+      ${ok(d)?'':`<p class="small" style="color:#a33">Non tutte queste carte sono nella collezione di ${esc(src.name)}.</p>`}
+      <div class="row"><button class="btn sm main" data-use="${i}" ${ok(d)?'':'disabled'}>Usa</button><button class="btn sm dk" data-del="${i}">${del===i?'Sicuro? Tocca ancora':'Elimina'}</button></div></div>`).join('')}</div>`);
+  document.querySelectorAll('[data-use]').forEach(b=>b.onclick=()=>{const d=S.my[+b.dataset.use];S.decks[p]=[...d.c];if(d.e)S.ev[p]=d.e;if(p===0){ss('deck0',S.decks[0]);ss('ev0',S.ev[0])}closeZoom();builder()});
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const i=+b.dataset.del;if(del===i){S.my.splice(i,1);saveMy();myDecks(p,src)}else myDecks(p,src,i)});
+}
 /* ---------- BUILDER ---------- */
 let F={r:'',q:''};
 function builder(){
@@ -445,6 +460,10 @@ function builder(){
     <select id="meta" class="btn sm" aria-label="Mazzi famosi"><option value="">Mazzi famosi (${metas.length})…</option>${metas.sort((a,b)=>b[0].s-a[0].s).map(([m,i])=>`<option value="${i}">${stars(m.s)} ${esc(m.n)}</option>`).join('')}</select>
     <button class="btn sm" id="clr">Svuota</button>
   </div>
+  <div class="row" style="margin-bottom:10px">
+    <button class="btn sm" id="mine">I miei mazzi (${S.my.length})</button>
+    <button class="btn sm main" id="sv" ${deck.length===5&&!err?'':'disabled'}>Salva questo mazzo</button>
+  </div>
   <div class="grid">${list.map(c=>{const on=deck.includes(c.n),no=!on&&!canAdd(deck,c.n);return `<button class="tile ${on?'on':''} ${no?'no':''}" data-n="${esc(c.n)}" aria-pressed="${on}" aria-label="${esc(c.n)}, ${c.r}"><img loading="lazy" src="${IMG[c.n]}" alt=""><span class="rb">${c.r}${c.fs?' · fuori serie':''}</span></button>`}).join('')}</div>`;
   app.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{const n=b.dataset.n;const d=S.decks[p];if(d.includes(n))d.splice(d.indexOf(n),1);else if(canAdd(d,n))d.push(n);persist();builder()});
   app.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{const d=S.decks[p];d.splice(d.indexOf(b.dataset.rm),1);persist();builder()});
@@ -454,6 +473,10 @@ function builder(){
   app.querySelectorAll('[data-src]').forEach(b=>b.onclick=()=>{S.src[p]=b.dataset.src===''?null:+b.dataset.src;if(p===0)ss('src0',S.src[0]);if(S.src[p]!==null){const cs=S.cols[S.src[p]].cards;S.decks[p]=S.decks[p].filter(n=>cs.includes(n))}persist();builder()});
   $('#meta').onchange=e=>{if(e.target.value==='')return;const m=META[+e.target.value];S.decks[p]=[...m.c];S.ev[p]=m.e;persist();builder()};
   $('#clr').onclick=()=>{S.decks[p]=[];persist();builder()};
+  $('#sv').onclick=()=>{zoomHTML(`<div class="panel" style="max-width:420px;width:100%"><h2>Salva il mazzo</h2><div class="thumbs mini">${deck.map(n=>`<img src="${IMG[n]}" alt="${esc(n)}">`).join('')}</div><input id="dn" class="field" style="width:100%" maxlength="28" placeholder="Nome del mazzo" aria-label="Nome del mazzo" value="${esc((S.my.find(d=>d.c.join()===deck.join())||{}).n||'')}"><p class="small">${S.useEv&&S.ev[p]?'Con l\'Evento '+esc(evById(S.ev[p]).n)+'.':'Puoi scegliere l\'Evento dopo: verrà salvato quando lo risalvi.'} Se il nome c'è già, il mazzo viene sostituito.</p><div class="row"><button class="btn main sm" id="dsv">Salva</button><button class="btn sm dk" onclick="closeZoom()">Annulla</button></div></div>`);
+    const i=$('#dn');i.focus();
+    $('#dsv').onclick=()=>{const n=i.value.trim().slice(0,28);if(!n){i.focus();return}const d={n,c:[...deck],e:S.ev[p]||null};const k=S.my.findIndex(x=>x.n.toLowerCase()===n.toLowerCase());if(k>=0)S.my[k]=d;else S.my.push(d);saveMy();closeZoom();builder()}};
+  $('#mine').onclick=()=>myDecks(p,src);
   $('#back').onclick=()=>{if(S.step>0){S.step--;builder()}else home()};
   $('#ok').onclick=()=>{S.useEv?evPick():next()};
   function persist(){if(p===0)ss('deck0',S.decks[0])}
